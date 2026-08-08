@@ -1,0 +1,9 @@
+{
+  "name": "csp-dashboard",
+  "version": "1.0.0",
+  "description": "Canadian Science Publishing board intelligence dashboard (OpenAlex-powered)",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": { "node": ">=18" }
+}

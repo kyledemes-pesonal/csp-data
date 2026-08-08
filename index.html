@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Canadian Science Publishing — Board Intelligence</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e;
+  --muted: #898781; --grid: #e1e0d9; --axis: #c3c2b7; --accent: #2a78d6;
+  --border: rgba(11,11,11,0.10);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7;
+    --muted: #898781; --grid: #2c2c2a; --axis: #383835; --accent: #3987e5;
+    --border: rgba(255,255,255,0.10);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7;
+  --muted: #898781; --grid: #2c2c2a; --axis: #383835; --accent: #3987e5;
+  --border: rgba(255,255,255,0.10);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--page); color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 14px;
+}
+header {
+  padding: 18px 22px 0; max-width: 960px; margin: 0 auto;
+}
+header h1 { margin: 0; font-size: 21px; }
+header .sub { color: var(--ink2); margin-top: 3px; }
+header .stamp { color: var(--muted); font-size: 11.5px; margin-top: 5px; }
+#themebtn {
+  float: right; background: none; border: 1px solid var(--border); color: var(--ink2);
+  border-radius: 8px; padding: 5px 10px; cursor: pointer; font-size: 12px;
+}
+nav {
+  max-width: 960px; margin: 14px auto 0; padding: 0 22px;
+  display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--grid);
+}
+.tabbtn {
+  background: none; border: none; border-bottom: 2.5px solid transparent;
+  color: var(--ink2); padding: 8px 12px; cursor: pointer; font-size: 13.5px; font-weight: 600;
+}
+.tabbtn.on { color: var(--ink); border-bottom-color: var(--accent); }
+main { max-width: 960px; margin: 0 auto; padding: 14px 22px 60px; }
+.tab { display: none; }
+.tab.on { display: block; }
+h2 { font-size: 16px; margin: 26px 0 4px; }
+.tabnote { color: var(--ink2); font-size: 12.5px; margin: 8px 0 4px; line-height: 1.5; }
+.tabnote code { background: var(--surface); border: 1px solid var(--border); padding: 1px 5px; border-radius: 4px; }
+.controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+.controls.sub { margin: 4px 0 8px; }
+.ctl span { color: var(--muted); font-size: 12px; margin-right: 5px; }
+select {
+  background: var(--surface); color: var(--ink); border: 1px solid var(--border);
+  border-radius: 8px; padding: 5px 8px; font-size: 13px; max-width: 340px;
+}
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button {
+  background: var(--surface); border: none; color: var(--ink2); padding: 5px 11px;
+  cursor: pointer; font-size: 12.5px;
+}
+.seg button.on { background: var(--accent); color: #fff; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip {
+  background: var(--surface); border: 1px solid var(--border); color: var(--ink2);
+  border-radius: 999px; padding: 3.5px 10px; font-size: 12px; cursor: pointer;
+}
+.chip.on { border-color: var(--accent); color: var(--ink); box-shadow: inset 0 0 0 1px var(--accent); }
+.chip.inactive { opacity: .55; font-style: italic; }
+.fig {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 12px 14px 8px; margin: 14px 0;
+}
+.fig-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.fig-title { font-weight: 700; font-size: 14px; }
+.fig-note { color: var(--muted); font-size: 11.5px; flex: 1 1 auto; }
+.fig-tools { margin-left: auto; display: flex; gap: 5px; }
+.tbtn {
+  background: none; border: 1px solid var(--border); color: var(--ink2); border-radius: 7px;
+  padding: 2.5px 8px; font-size: 11.5px; cursor: pointer; text-decoration: none; display: inline-block;
+}
+.tbtn:hover { color: var(--ink); border-color: var(--muted); }
+.fig-body { margin-top: 6px; }
+.chart { width: 100%; height: auto; display: block; }
+.fig-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 6px 2px 4px; }
+.lg-chip { color: var(--ink2); font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
+.lg-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.charttip {
+  position: fixed; display: none; z-index: 50; pointer-events: none;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 10px; font-size: 12px; line-height: 1.45;
+  box-shadow: 0 4px 18px rgba(0,0,0,.18); max-width: 300px;
+}
+.tiphint { color: var(--muted); font-size: 11px; }
+.loading { color: var(--muted); padding: 22px 4px; }
+.empty { color: var(--muted); padding: 18px 4px; }
+table.dt { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 12.5px; }
+table.dt th {
+  text-align: left; color: var(--muted); font-weight: 600; font-size: 11.5px;
+  border-bottom: 1px solid var(--axis); padding: 5px 8px;
+}
+table.dt td { border-bottom: 1px solid var(--grid); padding: 5px 8px; }
+table.dt tr.inactive td { opacity: .6; }
+table.dt a { color: var(--accent); text-decoration: none; }
+table.dt a:hover { text-decoration: underline; }
+table.dt .tag {
+  font-size: 10px; border: 1px solid var(--border); border-radius: 5px; padding: 0 4px;
+  color: var(--muted);
+}
+table.heat td { text-align: center; font-variant-numeric: tabular-nums; min-width: 46px; }
+table.heat td:first-child { text-align: left; }
+table.heat td.na { color: var(--muted); }
+.tflag { width: 18px; height: 12px; vertical-align: -1px; border-radius: 2px; }
+footer { max-width: 960px; margin: 0 auto; padding: 0 22px 40px; color: var(--muted); font-size: 11.5px; }
+footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <button id="themebtn" title="Toggle dark mode">◐ theme</button>
+  <h1>Canadian Science Publishing — Board Intelligence</h1>
+  <div class="sub">The CSP journal portfolio through <a href="https://openalex.org" style="color:var(--accent)">OpenAlex</a>: output, impact, open access, benchmarking, citations, funders, and metadata health.</div>
+  <div class="stamp" id="stamp"></div>
+</header>
+<nav>
+  <button class="tabbtn" data-tab="portfolio">Portfolio</button>
+  <button class="tabbtn" data-tab="benchmark">Benchmarking</button>
+  <button class="tabbtn" data-tab="publishing">Publishing behaviour</button>
+  <button class="tabbtn" data-tab="citing">Citation behaviour</button>
+  <button class="tabbtn" data-tab="funders">Funders</button>
+  <button class="tabbtn" data-tab="metadata">Metadata health</button>
+</nav>
+<main>
+  <div class="tab" id="tab-portfolio"></div>
+  <div class="tab" id="tab-benchmark"></div>
+  <div class="tab" id="tab-publishing"></div>
+  <div class="tab" id="tab-citing"></div>
+  <div class="tab" id="tab-funders"></div>
+  <div class="tab" id="tab-metadata"></div>
+</main>
+<footer>
+  Built on <a href="https://openalex.org">OpenAlex</a> and <a href="https://www.crossref.org">Crossref</a> open data.
+  Live tabs query the OpenAlex API on demand; static tabs note their snapshot date and refresh script.
+</footer>
+<script src="data/journals.js"></script>
+<script src="data/flags.js"></script>
+<script src="data/metrics.js"></script>
+<script src="data/landscape.js"></script>
+<script src="data/intel.js"></script>
+<script src="data/citing.js"></script>
+<script src="data/crossref.js"></script>
+<script src="data/peers.js"></script>
+<script src="assets/charts.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
