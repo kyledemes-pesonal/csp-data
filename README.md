@@ -39,6 +39,7 @@ or any single script (each stamps a `generated` date the page displays):
 | `build_intel.py` | intel.js | market share, Canadian-author share |
 | `build_peers.py` | peers.js | benchmarking peer sets + peer metrics |
 | `build_citing.py` | citing.js (+ data-raw/) | citing-works snapshot (full raw JSONL in `data-raw/citing/`, gitignored) |
+| `build_funders.py` | funders.js | per-journal funders with funded-works + unique-grant counts |
 | `build_crossref.py` | crossref.js | Crossref metadata coverage |
 
 Heavy steps cache into `data-raw/` and resume; delete the relevant cache files to force a

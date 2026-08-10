@@ -13,6 +13,14 @@ from build_metrics import load_roster, OA
 
 Y0, Y1 = 2019, 2026
 
+# Multidisciplinary soundness-review megajournals dominate every subfield's
+# Canadian-authored counts, so they crowd out real disciplinary peers (Kyle 2026-08-10).
+MEGAJOURNALS = {
+    "Scientific Reports", "PLoS ONE", "PLOS ONE", "Heliyon", "PeerJ",
+    "Royal Society Open Science", "Cureus", "IEEE Access", "SAGE Open",
+    "F1000Research", "Science Advances", "Nature Communications",
+}
+
 
 def top_subfields(members):
     f = f"primary_location.source.id:{'|'.join(members)},publication_year:{Y0}-"
@@ -33,6 +41,8 @@ def peer_candidates(subfields, exclude):
     for pid, ca_n in cands:
         e = emap.get(pid)
         if not e or e.get("type") != "journal":
+            continue
+        if e["display_name"] in MEGAJOURNALS:
             continue
         peers.append({"id": pid, "name": e["display_name"], "ca_works": ca_n,
                       "publisher": (e.get("host_organization_name") or ""),

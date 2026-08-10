@@ -47,7 +47,8 @@ Technology S950063636, GEOMATICA S4210183195 (if inactive per the rule below).
 4. **Benchmarking peer set** (build-time, per active CSP journal): top 3 subfields of the
    journal (2019+, by primary_topic.subfield), then top 10 journals by count of
    Canadian-authored works (institutions.country_code:CA) 2019+ in those subfields,
-   excluding all CSP/NRC titles. Megajournals INCLUDED (Kyle's call).
+   excluding all CSP/NRC titles. Megajournals EXCLUDED (Kyle reversed his earlier call
+   on 2026-08-10 after seeing them dominate; list in build_peers.py MEGAJOURNALS).
 5. **APC over time**: sources now carry `apc_usd_by_year` (new field, ~2026-07). Use it.
    Where null, fall back to current `apc_usd` flat + works-level `apc_sum` per year.
 6. **Citing-works dataset**: static, scope = works citing CSP works **published 2019+**

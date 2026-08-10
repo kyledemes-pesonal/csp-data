@@ -6,7 +6,7 @@ import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ORDER = ["build_journals.py", "build_metrics.py", "build_intel.py",
-         "build_peers.py", "build_citing.py", "build_crossref.py"]
+         "build_peers.py", "build_citing.py", "build_funders.py", "build_crossref.py"]
 
 for script in ORDER:
     print(f"\n=== {script} ===", flush=True)

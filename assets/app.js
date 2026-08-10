@@ -16,6 +16,18 @@
   function jfilter(gid) { return 'primary_location.source.id:' + gmembers[gid].join('|'); }
   function ui(filter) { return 'https://openalex.org/works?page=1&filter=' + encodeURIComponent(filter); }
   function pctOA(y) { return y.n ? (1 - (y.oa.closed || 0) / y.n) * 100 : null; }
+  // latest known APC list price (apc_usd_by_year entries are {year, price})
+  function latestApc(src) {
+    if (!src) return null;
+    const ab = src.apc_usd_by_year;
+    if (Array.isArray(ab) && ab.length) return ab.reduce((a, b) => (a.year > b.year ? a : b)).price;
+    return src.apc_usd;
+  }
+  // CSP's own published OpenArticle fee (data/csp_fees.js), else OpenAlex list price
+  function cspFee(gid) {
+    const F = window.CSP_FEES;
+    return F && F.fees[gid] != null ? F.fees[gid] : null;
+  }
   function esc(s) { const d = document.createElement('span'); d.textContent = s == null ? '' : s; return d.innerHTML; }
 
   // ---- live API with cache + fallback ----
@@ -271,18 +283,30 @@
         note(root, 'No retracted works flagged in any CSP journal.');
       }
 
-      // APC revenue proxy
-      const apcYears = [];
-      for (let y = 2010; y <= CUR_YEAR; y++) {
-        let tot = 0;
-        for (const g of allGroups) { const r = (M.groups[g.id] || {})[y]; if (r) tot += r.apc_paid || 0; }
-        apcYears.push({ x: y, y: tot });
+      // APC revenue proxy — stacked by journal (Kyle 2026-08-10)
+      const apcCats = [];
+      for (let y = 2010; y <= CUR_YEAR; y++) apcCats.push(y);
+      const perJ = allGroups.map((g) => ({
+        g,
+        vals: apcCats.map((y) => ((M.groups[g.id] || {})[y] || {}).apc_paid || 0),
+      })).map((r) => ({ ...r, tot: r.vals.reduce((a, b) => a + b, 0) }))
+        .filter((r) => r.tot > 0)
+        .sort((a, b) => b.tot - a.tot);
+      const topJ = perJ.slice(0, 8);
+      const otherJ = perJ.slice(8);
+      const series = topJ.map((r, i) => ({
+        name: r.g.name.replace('Canadian Journal of ', 'CJ '), color: T.cat[i % 8], values: r.vals,
+        urls: apcCats.map((y) => ui(jfilter(r.g.id) + ',publication_year:' + y + ',oa_status:gold|hybrid')),
+      }));
+      if (otherJ.length) {
+        series.push({ name: 'Other journals', color: T.muted,
+          values: apcCats.map((_, i) => otherJ.reduce((a, r) => a + r.vals[i], 0)) });
       }
-      C.line(root, {
-        title: 'APC revenue proxy (sum of estimated APCs paid, USD)',
-        note: 'OpenAlex apc_paid estimates on gold/hybrid works across the whole portfolio — a rough order-of-magnitude line, not accounting data',
-        series: [{ name: 'portfolio', color: T.cat[0], points: apcYears }],
-        yfmt: (v) => '$' + C.fmtN(v),
+      C.stack(root, {
+        title: 'APC revenue proxy by journal (estimated APCs paid, USD)',
+        note: 'OpenAlex apc_paid estimates on gold/hybrid works — order-of-magnitude only, not accounting data',
+        categories: apcCats,
+        series,
       });
     },
 
@@ -304,7 +328,8 @@
           fwci: fwn ? fw / fwn : null,
           oa: n19 ? (1 - closed / n19) * 100 : null,
           ca: n19 ? (ca / n19) * 100 : null,
-          apc: src.apc_usd,
+          apc: latestApc(src),
+          apcCsp: cspFee(g.id),
           h: src.h_index,
         };
       }).sort((a, b) => b.n19 - a.n19);
@@ -321,12 +346,13 @@
           <td>${r.fwci == null ? '–' : r.fwci.toFixed(2)}</td>
           <td>${r.oa == null ? '–' : r.oa.toFixed(0) + '%'}</td>
           <td>${r.ca == null ? '–' : r.ca.toFixed(0) + '%'}</td>
-          <td>${r.h ?? '–'}</td><td>${r.apc ? '$' + C.fmtN(r.apc) : '–'}</td>
+          <td>${r.h ?? '–'}</td><td>${r.apcCsp ? '$' + r.apcCsp.toLocaleString('en-CA') + '†' : r.apc ? '$' + r.apc.toLocaleString('en-CA') : '–'}</td>
           <td><a class=tbtn href="${ui(jfilter(r.g.id) + ',publication_year:2019-')}" target="_blank" rel="noopener">works ↗</a></td>`;
         tb.appendChild(tr);
       }
       tbl.appendChild(tb);
       root.appendChild(tbl);
+      note(root, `† = CSP's own published OpenArticle fee for manuscripts submitted after 2026-01-01 (CAD in Canada / USD outside; retrieved ${window.CSP_FEES ? window.CSP_FEES.retrieved : ''} from cdnsciencepub.com). Fully-OA titles show the latest list price OpenAlex records.`);
     },
   };
 
@@ -342,7 +368,7 @@
       const ps = P.peer_sets[bm.j];
       if (!ps) { note(root, 'No peer data built for this journal.'); return; }
       const sfNames = ps.subfields.map((s) => P.subfield_names[s] || s);
-      note(root, `Peers = the 10 journals (megajournals included) where Canadian researchers publish most, 2019–present, in <b>${esc(gname[bm.j])}</b>'s top subfields: <i>${esc(sfNames.join(' · '))}</i>. Click a peer in a legend to colour it. ${partialNote()}.`);
+      note(root, `Peers = the 10 journals (multidisciplinary megajournals excluded) where Canadian researchers publish most, 2019–present, in <b>${esc(gname[bm.j])}</b>'s top subfields: <i>${esc(sfNames.join(' · '))}</i>. Click a peer in a legend to colour it. ${partialNote()}.`);
 
       const T = C.theme();
       const years = [];
@@ -362,13 +388,21 @@
         this.render();
       };
 
+      // apc_usd_by_year entries are {year, price} (USD). Exact year when known;
+      // the latest known price carries forward to later years; earlier years and
+      // journals with no per-year data stay blank rather than showing a fake flat line
+      // (a lone current price appears only on the current year).
       const apcOfYear = (src, y) => {
         const ab = src && src.apc_usd_by_year;
-        if (Array.isArray(ab)) {
-          const hit = ab.find((r) => r.year === y || r.publication_year === y);
-          if (hit) return hit.apc_usd ?? hit.price_usd ?? hit.usd ?? null;
-        } else if (ab && typeof ab === 'object' && ab[y] != null) return ab[y];
-        return src ? src.apc_usd : null;
+        if (Array.isArray(ab) && ab.length) {
+          const hit = ab.find((r) => r.year === y);
+          if (hit) return hit.price;
+          const maxY = Math.max(...ab.map((r) => r.year));
+          if (y > maxY) return ab.find((r) => r.year === maxY).price;
+          return null;
+        }
+        if (src && src.apc_usd != null && y === CUR_YEAR) return src.apc_usd;
+        return null;
       };
 
       const mk = (title, cspVal, peerVal, yfmt, note2) => {
@@ -397,8 +431,11 @@
       mk('Citations to date, by publication year', (r) => r.cites, (r) => r.cites);
       mk('Mean FWCI', (r) => r.fwci, (r) => r.fwci, (v) => v.toFixed(2));
       mk('% Open Access', (r) => pctOA(r), (r) => pctOA(r), (v) => v.toFixed(0) + '%');
-      mk('APC list price (USD)', (r, y) => apcOfYear(cspSrc, y), (r, p, y) => apcOfYear(p, y),
-        (v) => '$' + C.fmtN(v), 'current/annual list price from OpenAlex sources; journals without an APC show nothing');
+      mk('APC list price (USD)',
+        (r, y) => (y >= CUR_YEAR ? (cspFee(bm.j) ?? apcOfYear(cspSrc, y)) : apcOfYear(cspSrc, y)),
+        (r, p, y) => apcOfYear(p, y),
+        (v) => '$' + C.fmtN(v),
+        'peers: annual list prices from OpenAlex (latest carried forward); CSP point = the journal\'s published 2026 OpenArticle fee from cdnsciencepub.com — no earlier CSP price history exists');
 
       // peer table
       const tbl = document.createElement('table');
@@ -704,66 +741,27 @@
     },
   };
 
-  /* ================= FUNDERS (live) ================= */
+  /* ================= FUNDERS (static) ================= */
   const fu = { j: groups[0].id };
   tabs.funders = {
     render() {
       const root = tabEl('funders');
       root.innerHTML = '';
+      const FU = window.CSP_FUNDERS;
+      if (!FU) { note(root, 'No funder data built yet — run <code>py -3 build/build_funders.py</code>.'); return; }
       const bar = controlBar(root);
-      select(bar, 'Journal', groups.map((g) => [g.id, g.name]), fu.j, (v) => { fu.j = v; this.render(); });
-      note(root, 'Funders tagged on works in this journal (all years). 🍁 marks Canadian funders. Unique grants = distinct award IDs among this journal\'s works.');
+      select(bar, 'Journal', groups.filter((g) => FU.groups[g.id]).map((g) => [g.id, g.name]),
+        fu.j, (v) => { fu.j = v; this.render(); });
+      note(root, `Funders tagged on works in this journal (all years). 🍁 marks Canadian funders. Unique grants = distinct award IDs among this journal's works. Static snapshot, <b>data as of ${FU.generated.slice(0, 10)}</b> — refresh with <code>py -3 build/build_funders.py</code>.`);
       const box = document.createElement('div');
       root.appendChild(box);
-      box.innerHTML = '<div class="loading">Loading funders from OpenAlex…</div>';
-      this.load(box, fu.j).catch((e) => {
-        box.innerHTML = `<div class="empty">Live API error: ${esc(e.message)}</div>`;
-      });
-    },
-
-    async load(box, jid) {
       const T = C.theme();
+      const jid = fu.j;
       const jf = jfilter(jid);
-      const d = await api(`/works?filter=${encodeURIComponent(jf + ',funders.id:!null')}&per-page=1&select=id&include_xpac=true`);
-      const total = d.meta.count;
-      // stream works with funders for exact unique-grant counts
-      const funders = {}; // fid -> {works, grants:Set}
-      let cursor = '*', seen = 0;
-      while (cursor) {
-        const p = await api(`/works?filter=${encodeURIComponent(jf + ',funders.id:!null')}&per-page=200&cursor=${encodeURIComponent(cursor)}&select=id,funders,awards&include_xpac=true`);
-        for (const w of p.results) {
-          seen++;
-          const fw = new Set();
-          for (const f of w.funders || []) {
-            const fid = f.id.split('/').pop();
-            if (!funders[fid]) funders[fid] = { name: f.display_name, works: 0, grants: new Set() };
-            if (!fw.has(fid)) { funders[fid].works++; fw.add(fid); }
-          }
-          for (const a of w.awards || []) {
-            const fid = (a.funder_id || '').split('/').pop();
-            if (fid && funders[fid]) funders[fid].grants.add(a.funder_award_id || a.id);
-          }
-        }
-        cursor = p.meta.next_cursor;
-        if (!p.results.length) break;
-        if (fu.j !== jid) return;
-        box.innerHTML = `<div class="loading">Loading funders… ${seen}/${total} funded works</div>`;
-      }
-      // funder countries
-      const ids = Object.keys(funders);
-      const country = {};
-      for (let i = 0; i < ids.length; i += 50) {
-        const chunk = ids.slice(i, i + 50);
-        try {
-          const r = await api(`/funders?filter=${encodeURIComponent('ids.openalex:' + chunk.join('|'))}&per-page=50&select=id,country_code`);
-          for (const f of r.results) country[f.id.split('/').pop()] = f.country_code;
-        } catch (e) { /* country stays unknown */ }
-      }
-      if (fu.j !== jid) return;
-      box.innerHTML = '';
-      const rows = ids.map((fid) => ({
-        fid, name: funders[fid].name, works: funders[fid].works,
-        grants: funders[fid].grants.size, cc: country[fid],
+      const D = FU.groups[jid];
+      const total = D.n_funded;
+      const rows = Object.entries(D.funders).map(([fid, v]) => ({
+        fid, name: v.name, works: v.works, grants: v.grants, cc: FU.country[fid],
       })).sort((a, b) => b.works - a.works);
 
       C.barh(box, {
@@ -803,9 +801,57 @@
   /* ================= METADATA HEALTH (static) ================= */
   const md = { j: Object.keys(CR.journals)[0] };
   tabs.metadata = {
+    renderCompare(root) {
+      note(root, `Crossref record completeness across the portfolio. Colour = <b>current</b> coverage (last ~2 years) as Crossref reports it; click a journal row for its full detail below. Static snapshot, <b>data as of ${CR.generated.slice(0, 10)}</b>.`);
+      const dark = C.isDark();
+      const seq = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'];
+      const ramp = (v) => seq[Math.min(seq.length - 1, Math.floor(v * seq.length))];
+      const txtFor = (v) => (v > 0.55 ? '#ffffff' : dark ? '#ffffff' : '#0b0b0b');
+      const wrap = document.createElement('div');
+      wrap.className = 'fig';
+      wrap.innerHTML = `<div class="fig-head"><div class="fig-title">All journals × metadata fields (current coverage)</div><div class="fig-tools"></div></div>`;
+      const scroller = document.createElement('div');
+      scroller.style.overflowX = 'auto';
+      const tbl = document.createElement('table');
+      tbl.className = 'dt heat';
+      const short = (f) => ({ 'Funder registry IDs': 'Funder IDs', 'Full-text/TDM links': 'TDM links',
+        'Similarity-check URLs': 'Similarity', 'Update/retraction metadata': 'Updates' }[f] || f);
+      tbl.innerHTML = `<thead><tr><th>Journal</th>${CR.fields.map((f) => `<th title="${esc(f)}">${esc(short(f))}</th>`).join('')}</tr></thead>`;
+      const tb = document.createElement('tbody');
+      const rowsOut = [['journal', ...CR.fields]];
+      const jrows = groups.filter((g) => CR.journals[g.id]);
+      for (const g of jrows) {
+        const E = CR.journals[g.id];
+        const tr = document.createElement('tr');
+        let html = `<td style="cursor:pointer;white-space:nowrap">${esc(g.name.replace('Canadian Journal of', 'CJ'))}</td>`;
+        const vals = [];
+        for (const f of CR.fields) {
+          const v = (E.coverage[f] || {}).current;
+          vals.push(v);
+          html += v == null ? '<td class=na>–</td>'
+            : `<td style="background:${ramp(v)};color:${txtFor(v)}">${Math.round(v * 100)}%</td>`;
+        }
+        tr.innerHTML = html;
+        tr.firstChild.onclick = () => { md.j = g.id; this.render(); };
+        tb.appendChild(tr);
+        rowsOut.push([g.name, ...vals.map((v) => (v == null ? '' : (v * 100).toFixed(1)))]);
+      }
+      tbl.appendChild(tb);
+      scroller.appendChild(tbl);
+      wrap.appendChild(scroller);
+      const csv = document.createElement('button');
+      csv.className = 'tbtn'; csv.textContent = 'CSV';
+      csv.onclick = () => C.exportCSV('metadata_all_journals', rowsOut);
+      wrap.querySelector('.fig-tools').appendChild(csv);
+      root.appendChild(wrap);
+    },
     render() {
       const root = tabEl('metadata');
       root.innerHTML = '';
+      this.renderCompare(root);
+      const h = document.createElement('h2');
+      h.textContent = 'Journal detail';
+      root.appendChild(h);
       const bar = controlBar(root);
       select(bar, 'Journal', groups.filter((g) => CR.journals[g.id]).map((g) => [g.id, g.name]),
         md.j, (v) => { md.j = v; this.render(); });
@@ -874,6 +920,7 @@
     tabs[activeTab].render(); tabs[activeTab].rendered = true;
   };
   const stamp = document.getElementById('stamp');
-  stamp.textContent = `static data: metrics ${M.generated.slice(0, 10)} · citing ${CIT.generated.slice(0, 10)} · crossref ${CR.generated.slice(0, 10)} · peers ${P.generated.slice(0, 10)}`;
+  stamp.textContent = `static data: metrics ${M.generated.slice(0, 10)} · citing ${CIT.generated.slice(0, 10)} · crossref ${CR.generated.slice(0, 10)} · peers ${P.generated.slice(0, 10)}` +
+    (window.CSP_FUNDERS ? ` · funders ${window.CSP_FUNDERS.generated.slice(0, 10)}` : '');
   showTab('portfolio');
 })();
