@@ -107,6 +107,13 @@
     parent.appendChild(d);
   }
   function partialNote() { return `${CUR_YEAR} is a partial year`; }
+  // series i: palette colour, then a new dash pattern each time the palette wraps,
+  // so every journal stays distinguishable when all of them are selected
+  const DASHES = ['', '7 4', '2 3', '10 3 2 3'];
+  function lineStyle(i, T) {
+    const n = T.cat.length;
+    return { color: T.cat[i % n], dash: DASHES[Math.floor(i / n) % DASHES.length] };
+  }
 
   // years helper: metric rows for a group between y0..y1
   function yearsOf(gid, y0, y1) {
@@ -123,9 +130,16 @@
       root.innerHTML = '';
       note(root, `All ${groups.length} active CSP journals (predecessor titles folded in). ${partialNote()}.`);
       const bar = controlBar(root);
-      // journal chips (max 8)
+      // journal chips (no cap; "All active" / "Clear" shortcuts first)
       const chipbox = document.createElement('div');
       chipbox.className = 'chips';
+      for (const [txt, ids] of [[`All ${groups.length} active`, groups.map((g) => g.id)], ['Clear', []]]) {
+        const b = document.createElement('button');
+        b.className = 'chip chip-cmd';
+        b.textContent = txt;
+        b.onclick = () => { pf.sel = ids; this.render(); };
+        chipbox.appendChild(b);
+      }
       allGroups.forEach((g) => {
         const b = document.createElement('button');
         b.className = 'chip' + (pf.sel.includes(g.id) ? ' on' : '') + (g.active ? '' : ' inactive');
@@ -133,8 +147,7 @@
         b.title = g.name + (g.active ? '' : ' (no longer published)');
         b.onclick = () => {
           if (pf.sel.includes(g.id)) pf.sel = pf.sel.filter((x) => x !== g.id);
-          else if (pf.sel.length < 8) pf.sel.push(g.id);
-          else return;
+          else pf.sel = [...pf.sel, g.id];
           this.render();
         };
         chipbox.appendChild(b);
@@ -148,7 +161,7 @@
       const mk = (title, val, yfmt, note2, urlFn) => C.line(root, {
         title, note: note2,
         series: sel.map((gid, i) => ({
-          name: gname[gid], color: T.cat[i % 8],
+          name: gname[gid], ...lineStyle(i, T),
           points: yearsOf(gid, pf.y0, CUR_YEAR).map((r) => ({
             x: r.y, y: val(r), url: urlFn ? urlFn(gid, r.y) : ui(jfilter(gid) + ',publication_year:' + r.y),
           })),
@@ -260,7 +273,7 @@
         title: 'Canadian-authored share of each journal',
         note: 'works with ≥1 Canadian institution / all works; journals from the selection above',
         series: sel.map((gid, i) => ({
-          name: gname[gid], color: T.cat[i % 8],
+          name: gname[gid], ...lineStyle(i, T),
           points: yearsOf(gid, Math.max(pf.y0, 1950), CUR_YEAR).filter((r) => r.n >= 5).map((r) => ({
             x: r.y,
             y: ((I.ca_share[gid] || {})[r.y] || 0) / r.n * 100,

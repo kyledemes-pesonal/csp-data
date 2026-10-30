@@ -160,7 +160,9 @@
     for (const e of entries) {
       const chip = document.createElement('span');
       chip.className = 'lg-chip';
-      chip.innerHTML = `<span class="lg-dot" style="background:${e.color}"></span>${e.name}`;
+      chip.innerHTML = (e.dash
+        ? `<svg width="20" height="10"><line x1="1" y1="5" x2="19" y2="5" stroke="${e.color}" stroke-width="2.5" stroke-dasharray="${e.dash}"/></svg>`
+        : `<span class="lg-dot" style="background:${e.color}"></span>`) + e.name;
       if (e.onclick) { chip.style.cursor = 'pointer'; chip.onclick = e.onclick; }
       if (e.faded) chip.style.opacity = 0.4;
       lg.appendChild(chip);
@@ -202,9 +204,12 @@
       el('path', {
         d: pts.map((p, i) => (i ? 'L' : 'M') + x(p.x).toFixed(1) + ' ' + y(p.y).toFixed(1)).join(''),
         fill: 'none', stroke: s.color, 'stroke-width': 2, 'stroke-linejoin': 'round',
+        ...(s.dash ? { 'stroke-dasharray': s.dash } : {}),
       }, svg);
+      // smaller markers when crowded, so dash patterns stay readable
+      const crowded = opts.series.length > T.cat.length;
       for (const p of pts) {
-        const c = el('circle', { cx: x(p.x), cy: y(p.y), r: 3.2, fill: s.color, stroke: T.surface, 'stroke-width': 1.5 }, svg);
+        const c = el('circle', { cx: x(p.x), cy: y(p.y), r: crowded ? 1.8 : 3.2, fill: s.color, stroke: T.surface, 'stroke-width': crowded ? 0.8 : 1.5 }, svg);
         const hit = el('circle', { cx: x(p.x), cy: y(p.y), r: 9, fill: 'transparent' }, svg);
         hit.style.cursor = p.url ? 'pointer' : 'default';
         hit.addEventListener('mousemove', (ev) => showTip(
@@ -214,7 +219,7 @@
       }
     }
     if (opts.series.length > 1) {
-      legend(F.card, opts.series.map((s) => ({ name: s.name, color: s.color })));
+      legend(F.card, opts.series.map((s) => ({ name: s.name, color: s.color, dash: s.dash })));
     }
     F.addTools(
       () => [['series', 'x', 'y'], ...opts.series.flatMap((s) => s.points.map((p) => [s.name, p.x, p.y]))],
