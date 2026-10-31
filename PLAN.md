@@ -8,14 +8,26 @@ Kicked off 2026-08-08. All decisions below were confirmed by Kyle on 2026-08-08.
 
 ## Data universe
 
-CSP's journals live under TWO unlinked OpenAlex publishers (curation gap, separate task filed):
+CSP's journals are the sources hosted by `P4310312929` Canadian Science Publishing.
 
-- `P4310312929` Canadian Science Publishing (22 sources)
-- `P4310313060` NRC Research Press (15 sources — the flagships: CJ Chemistry, CJ Zoology, …)
+Until 2026-10-30 they were split across two unlinked publishers: CSP (22 sources) and
+`P4310313060` NRC Research Press (CSP's pre-2010 name; 15 sources, the flagships CJ Chemistry,
+CJ Zoology, …). On 2026-10-30 (ZD 22906, oxjob #1899) every CSP journal was moved onto CSP and
+NRC Research Press was merged into it. The same fix changed the roster:
 
-The dashboard always unions both lineages (~37 sources, ~204k works; 15,330 works 2019+
-including xpac). `include_xpac=true` on all works calls (adds only ~49 works but correct).
-Excluded: `S4306486301` (CSP eBooks platform, 13 works).
+- in: Journal of Psychiatry and Neuroscience S141047287 (CSP publishes it since 2025; its
+  1992–2024 history comes with it), Canadian Journal of Research S4210176233 (1929–50, CSP archive)
+- out: Geomatica S4210183195 (Elsevier since 2024), Canadian Aeronautics & Space J. S142396420
+  (CASI) and J. Student Science & Technology S950063636 (neither was ever CSP's)
+
+Sources picked up the change on 2026-10-31; works follow as the nightly ES sync reaches them, so
+every works query selects CSP by the roster's source ids, never by publisher lineage. 35 sources. `include_xpac=true` on all works calls (adds only ~49 works
+but correct). Excluded: `S4306486301` (CSP eBooks platform, 13 works).
+
+**Rebuild after a roster change:** run `build/run_all.py` (all steps, so every tab gets the new
+journals). The citing caches (`data-raw/cited_map.json` + `data-raw/citing/`) are tied to the
+roster and the build stops until both are deleted; the per-source caches (`agg_`, `fwci_`,
+`funders_`) are not. The caches live in `~/OneDrive/Desktop/OPENALEX/csp-dashboard/data-raw`.
 
 ### Journal roster & successor chains (LOCKED — Kyle wants FULL history)
 
@@ -33,8 +45,8 @@ Predecessor titles fold into their active successor for all time series. Chains:
 - **Drone Systems & Applications** S4220651326 ← J. Unmanned Vehicle Systems S4210187971
 
 Standalone historical titles (no successor; shown in portfolio table as inactive, not in
-per-journal selectors): Canadian Aeronautics & Space J. S142396420, J. Student Science &
-Technology S950063636, GEOMATICA S4210183195 (if inactive per the rule below).
+per-journal selectors): Canadian Journal of Research S4210176233 (1929–50; it split into
+several successors, so it folds into none).
 
 "Active" = ≥1 work in the last two full calendar years (computed at build time, not hardcoded).
 

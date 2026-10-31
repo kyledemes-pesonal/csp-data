@@ -7,6 +7,7 @@ Scope: all works citing CSP works PUBLISHED 2019+ (Kyle: 2019+, full raw downloa
 Resumable (checkpoint of completed batches)."""
 import json
 import os
+import sys
 import gzip
 from collections import defaultdict, Counter
 from common import (cursor_stream, write_js, sid, load_checkpoint, save_checkpoint,
@@ -22,9 +23,27 @@ SELECT = ("id,publication_year,cited_by_count,fwci,open_access,topics,"
 
 
 def cited_map(roster):
+    """Cited work -> group ids. The citing batches are cached by position in this map, so a roster
+    change (e.g. the 2026-10-30 CSP publisher fold) has to refetch both: never reuse one alone."""
     cache = os.path.join(DATA_RAW, "cited_map.json")
+    sig_path = os.path.join(DATA_RAW, "cited_map.roster.json")
+    sig = sorted(f"{g['id']}:{'|'.join(sorted(g['members']))}" for g in roster["groups"])
+    stale = f"Delete {cache}, {sig_path} and {CIT_DIR}/ to refetch the citing data."
     if os.path.exists(cache):
-        return json.load(open(cache, encoding="utf-8"))
+        m = json.load(open(cache, encoding="utf-8"))
+        if os.path.exists(sig_path):
+            if json.load(open(sig_path, encoding="utf-8")) != sig:
+                sys.exit("journal roster changed since cited_map.json was built. " + stale)
+        else:
+            # cache from before this check: groups with no 2019+ works never enter the map,
+            # so the most we can test is that no cached group has left the roster
+            gone = sorted({gid for gids in m.values() for gid in gids} - {g["id"] for g in roster["groups"]})
+            if gone:
+                sys.exit(f"cited_map.json was built for another roster (gone: {gone}). " + stale)
+            json.dump(sig, open(sig_path, "w", encoding="utf-8"))
+        return m
+    if os.listdir(CIT_DIR):
+        sys.exit(f"{CIT_DIR}/ holds batches from an earlier cited map. " + stale)
     m = {}
     for g in roster["groups"]:
         f = (f"primary_location.source.id:{'|'.join(g['members'])},"
@@ -33,6 +52,7 @@ def cited_map(roster):
             m.setdefault(sid(w["id"]), []).append(g["id"])
         print(f"  cited ids: {g['id']} done (total {len(m)})")
     json.dump(m, open(cache, "w", encoding="utf-8"))
+    json.dump(sig, open(sig_path, "w", encoding="utf-8"))
     return m
 
 

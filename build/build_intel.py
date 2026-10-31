@@ -3,7 +3,7 @@
   by publisher (CSP vs majors). One group_by call per publisher.
 - CA share: per CSP journal group, Canadian-authored works per year (full history).
 Output: data/intel.js. Fast (~40 calls)."""
-from common import get, group_by, write_js, sid, CSP_LINEAGES
+from common import get, group_by, write_js, sid
 from build_metrics import load_roster
 
 Y0 = 2010
@@ -36,8 +36,10 @@ def main():
     base = f"primary_topic.subfield.id:{sf_filter},institutions.country_code:CA,publication_year:{Y0}-"
 
     market = {}
+    # CSP = the roster's own sources, not the publisher lineage: works only pick up a source's
+    # host at their next re-stamp, so a re-hosted journal (JPN, Oct 2026) lags under lineage filters
     market["Canadian Science Publishing"] = year_counts(
-        base + f",primary_location.source.host_organization_lineage:{CSP_LINEAGES}")
+        base + f",primary_location.source.id:{'|'.join(all_members)}")
     for name in MAJORS:
         pid, canon = publisher_id(name)
         market[canon] = year_counts(

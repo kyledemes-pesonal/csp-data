@@ -20,7 +20,12 @@ os.makedirs(DATA_RAW, exist_ok=True)
 
 API = "https://api.openalex.org"
 
-CSP_LINEAGES = "P4310312929|P4310313060"
+# CSP's journals = sources hosted by P4310312929. P4310313060 "NRC Research Press" (CSP's pre-2010
+# name) was folded into it on 2026-10-30 (ZD 22906, oxjob #1899): its journals moved over and the
+# publisher was merged. Same change: JPN joined (CSP publishes it since 2025), Canadian Journal of
+# Research joined (archive), Geomatica left (Elsevier since 2024), CAS Journal and J. Student Sci. &
+# Tech. left (never CSP's).
+CSP_LINEAGES = "P4310312929"
 EBOOKS = "S4306486301"
 
 # Successor chains: successor source id -> [predecessor ids, oldest last]
@@ -38,8 +43,11 @@ def _load_key():
     k = os.environ.get("OPENALEX_API_KEY")
     if k:
         return k
-    env = os.path.join(os.path.dirname(ROOT), "openalex-walden", ".env")
-    if os.path.exists(env):
+    # sibling checkout (Windows layout), then the Mac working tree
+    for env in (os.path.join(os.path.dirname(ROOT), "openalex-walden", ".env"),
+                os.path.expanduser("~/OneDrive/Desktop/OPENALEX/openalex-walden/.env")):
+        if not os.path.exists(env):
+            continue
         for line in open(env, encoding="utf-8", errors="ignore"):
             line = line.strip()
             if line.startswith("OPENALEX_API_KEY"):
